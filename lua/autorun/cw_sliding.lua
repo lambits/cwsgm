@@ -9,6 +9,8 @@ CreateConVar("cwslide_fixed", 1, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should the 
 CreateConVar("cwslide_sound", "player/suit_sprint.wav", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "What sound should it play when sliding?")
 CreateConVar("cwslide_dynamic", 1, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should the sliding time be reduced or increased if sliding upwards or downwards?", 0, 1)
 CreateConVar("cwslide_footsteps", 0, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should footstep sounds play when sliding?", 0, 1)
+CreateConVar("cwslide_stuck", 1, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should the player keep sliding after pressing the button?", 0, 1)
+CreateConVar("cwslide_cooldown", 0.875, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "How much time should it be after which you can slide?", 0, 60)
 
 if SERVER then
     util.AddNetworkString("coldwar_slide_updatestatus")
@@ -40,8 +42,9 @@ hook.Add("SetupMove", "coldwar_slide_setupmove", function(ply, mv)
     ply.CWSlideTime = ply.CWSlideTime or 0
     ply.CWSlideAngles = ply.CWSlideAngles or Angle(0, 0, 0)
     ply.CWSlideMP = ply.CWSlideMP or 1
+    ply.CWSlideCooldown = ply.CWSlideCooldown or 0
 
-    if mv:KeyDown(IN_DUCK) and ply:IsSprinting() and mv:GetVelocity() ~= Vector(0, 0, 0) and ply:OnGround() and not ply.IsCWSliding then
+    if mv:KeyDown(IN_DUCK) and ply:IsSprinting() and mv:GetVelocity() ~= Vector(0, 0, 0) and ply:OnGround() and not ply.IsCWSliding and ply.CWSlideCooldown < CurTime() then
         ply.CWSlideTime = CurTime() + ensureToNumber(GetConVar("cwslide_time"):GetFloat(), 0.575)
         ply:SetSliding(true)
         ply:ViewPunch(Angle(mv:GetVelocity():Angle():Forward():Dot(mv:GetAngles():Forward()) * -4.5, 0, mv:GetVelocity():Angle():Right():Dot(mv:GetAngles():Forward()) * 7.5))
@@ -50,8 +53,9 @@ hook.Add("SetupMove", "coldwar_slide_setupmove", function(ply, mv)
 
         ply:EmitSound(GetConVar("cwslide_sound"):GetString())
     end
-    if ply:GetSliding() and ply.CWSlideTime < CurTime() or not ply:KeyDown(IN_DUCK) then
+    if ply:GetSliding() and (ply.CWSlideTime < CurTime() or not ply:KeyDown(IN_DUCK)) then
         ply:SetSliding(false)
+        ply.CWSlideCooldown = CurTime() + GetConVar("cwslide_cooldown"):GetFloat()
     end
 
     if ply:GetSliding() and ply:OnGround() then
@@ -80,11 +84,13 @@ hook.Add("SetupMove", "coldwar_slide_setupmove", function(ply, mv)
 end)
 
 hook.Add("StartCommand", "coldwar_slide_startcommand", function(ply, cmd)
-
+    if ply:GetSliding() and GetConVar("cwslide_stuck"):GetBool() then
+        cmd:SetButtons(IN_DUCK)
+    end
 end)
 
 hook.Add("PlayerFootstep", "coldwar_slide_footsteps", function(ply)
-    if ply:GetSliding() then return GetConVar("cwslide_footsteps"):GetBool() end
+    if ply:GetSliding() and not GetConVar("cwslide_footsteps"):GetBool() then return true end
 end)
 
 if CLIENT then
@@ -102,6 +108,8 @@ if CLIENT then
                 ["cwslide_sound"] = "player/suit_sprint.wav",
                 ["cwslide_dynamic"] = 1,
                 ["cwslide_footsteps"] = 0,
+                ["cwslide_stuck"] = 1,
+                ["cwslide_cooldown"] = 0.875,
                 ["cwslide_vfx"] = 1,
             })
 
@@ -127,6 +135,12 @@ if CLIENT then
 
             panel:CheckBox("Footsteps?", "cwslide_footsteps")
             panel:ControlHelp("Should footstep sounds play when sliding?\n")
+            
+            panel:CheckBox("Stuck?", "cwslide_stuck")
+            panel:ControlHelp("Should the player keep sliding after pressing the button?\n")
+
+            panel:NumSlider("Cooldown", "cwslide_cooldown", 0, 60)
+            panel:ControlHelp("How much time should it be after which you can slide?\n")
 
             panel:Help("\nClient Controls\n")
             
