@@ -8,6 +8,7 @@ CreateConVar("cwslide_speed", 400, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "The speed
 CreateConVar("cwslide_fixed", 1, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should the angles of the velocity be fixed while sliding?", 0, 1)
 CreateConVar("cwslide_sound", "player/suit_sprint.wav", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "What sound should it play when sliding?")
 CreateConVar("cwslide_dynamic", 1, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should the sliding time be reduced or increased if sliding upwards or downwards?", 0, 1)
+CreateConVar("cwslide_footsteps", 0, {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Should footstep sounds play when sliding?", 0, 1)
 
 if SERVER then
     util.AddNetworkString("coldwar_slide_updatestatus")
@@ -43,6 +44,7 @@ hook.Add("SetupMove", "coldwar_slide_setupmove", function(ply, mv)
     if mv:KeyDown(IN_DUCK) and ply:IsSprinting() and mv:GetVelocity() ~= Vector(0, 0, 0) and ply:OnGround() and not ply.IsCWSliding then
         ply.CWSlideTime = CurTime() + ensureToNumber(GetConVar("cwslide_time"):GetFloat(), 0.575)
         ply:SetSliding(true)
+        ply:ViewPunch(Angle(mv:GetVelocity():Angle():Forward():Dot(mv:GetAngles():Forward()) * -4.5, 0, mv:GetVelocity():Angle():Right():Dot(mv:GetAngles():Forward()) * 7.5))
         ply.CWSlideAngles = mv:GetVelocity():Angle()
         ply.CWSlideMP = 1
 
@@ -77,8 +79,12 @@ hook.Add("SetupMove", "coldwar_slide_setupmove", function(ply, mv)
     end
 end)
 
+hook.Add("StartCommand", "coldwar_slide_startcommand", function(ply, cmd)
+
+end)
+
 hook.Add("PlayerFootstep", "coldwar_slide_footsteps", function(ply)
-    if ply:GetSliding() then return true end
+    if ply:GetSliding() then return GetConVar("cwslide_footsteps"):GetBool() end
 end)
 
 if CLIENT then
@@ -95,6 +101,7 @@ if CLIENT then
                 ["cwslide_fixed"] = 1,
                 ["cwslide_sound"] = "player/suit_sprint.wav",
                 ["cwslide_dynamic"] = 1,
+                ["cwslide_footsteps"] = 0,
                 ["cwslide_vfx"] = 1,
             })
 
@@ -118,10 +125,13 @@ if CLIENT then
             panel:CheckBox("Dynamic?", "cwslide_dynamic")
             panel:ControlHelp("Should the sliding time be reduced or increased if sliding upwards or downwards?\n")
 
+            panel:CheckBox("Footsteps?", "cwslide_footsteps")
+            panel:ControlHelp("Should footstep sounds play when sliding?\n")
+
             panel:Help("\nClient Controls\n")
             
             panel:CheckBox("VFX", "cwslide_vfx")
-            panel:ControlHelp("Should visual effects play when sliding?\n")
+            panel:ControlHelp("Should visual effects play when sliding?\nWARNING! May conflict with Modern Warfare Base and TPCGM!\n")
         end)
     end)
 
